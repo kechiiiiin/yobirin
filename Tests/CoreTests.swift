@@ -296,3 +296,48 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(Config.displayName(forExcludedID: "bookmark:https://a.b/"), "https://a.b/")
     }
 }
+
+final class SnippetFileTests: XCTestCase {
+    private func tmp() -> URL {
+        FileManager.default.temporaryDirectory.appendingPathComponent("yobirin-snip-\(UUID().uuidString)/snippets.json")
+    }
+
+    func testRoundTripWithNewlinesAndJapanese() throws {
+        let url = tmp()
+        let items = [Snippet(name: "署名", text: "よろしくお願いします。\n山内\n"), Snippet(name: "a/b", text: "\"引用\" と 😀")]
+        try SnippetFile.save(items, to: url)
+        XCTAssertEqual(SnippetFile.load(from: url), items)
+    }
+
+    func testAddEditDelete() throws {
+        let url = tmp()
+        var items = [Snippet(name: "一", text: "1")]
+        try SnippetFile.save(items, to: url)
+        items.append(Snippet(name: "二", text: "2\n2"))
+        try SnippetFile.save(items, to: url)
+        XCTAssertEqual(SnippetFile.load(from: url).count, 2)
+        items[0].text = "改"
+        try SnippetFile.save(items, to: url)
+        XCTAssertEqual(SnippetFile.load(from: url)[0].text, "改")
+        items.remove(at: 0)
+        try SnippetFile.save(items, to: url)
+        XCTAssertEqual(SnippetFile.load(from: url), [Snippet(name: "二", text: "2\n2")])
+    }
+
+    func testLoadsHandWrittenFormat() throws {
+        let url = tmp()
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(#"[{"name":"住所","text":"a\nb"}]"#.utf8).write(to: url)
+        XCTAssertEqual(SnippetFile.load(from: url), [Snippet(name: "住所", text: "a\nb")])
+    }
+
+    func testIssues() {
+        let items = [Snippet(name: "a", text: ""), Snippet(name: " ", text: "x"), Snippet(name: "a", text: "y"), Snippet(name: "b", text: "")]
+        let issues = SnippetFile.issues(in: items)
+        XCTAssertEqual(issues[0], .duplicateName)
+        XCTAssertEqual(issues[1], .emptyName)
+        XCTAssertEqual(issues[2], .duplicateName)
+        XCTAssertNil(issues[3])
+        XCTAssertTrue(SnippetFile.issues(in: []).isEmpty)
+    }
+}

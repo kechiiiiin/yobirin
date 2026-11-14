@@ -9,7 +9,91 @@ final class SettingsModel: ObservableObject {
     var onRecordingChange: (Bool) -> Void = { _ in }
     private var monitor: Any?
 
-    init(config: Config) { self.config = config }
+    // MARK: スニペット（snippets.json）
+    @Published var drafts: [SnippetDraft] = [] {
+        didSet { if !loadingSnippets { snippetsEdited() } }
+    }
+    @Published var selection: UUID?
+    @Published var snippetStatus: String = ""
+    var onSnippetsSaved: () -> Void = {}
+    private var loadedStamp: FileStamp?
+    private var loadingSnippets = false
+    private var dirty = false
+    private var saveWork: DispatchWorkItem?
+    var snippetsURL: URL = Paths.snippetsFile
+
+    init(config: Config) {
+        self.config = config
+        loadSnippets()
+    }
+
+    /// 外から書き換えられたファイルを読む（未保存の編集があるときは何もしない）
+    func reloadSnippetsIfIdle() {
+        guard !dirty, FileStamp.of(snippetsURL) != loadedStamp else { return }
+        loadSnippets()
+    }
+
+    func loadSnippets() {
+        loadingSnippets = true
+        let keep = selection.flatMap { id in drafts.first { $0.id == id }?.name }
+        drafts = SnippetFile.load(from: snippetsURL).map { SnippetDraft(name: $0.name, text: $0.text) }
+        selection = drafts.first { $0.name == keep }?.id ?? drafts.first?.id
+        loadedStamp = FileStamp.of(snippetsURL)
+        dirty = false
+        saveWork?.cancel()
+        loadingSnippets = false
+        snippetStatus = ""
+    }
+
+    func addSnippet() {
+        var n = 1
+        let names = Set(drafts.map(\.name))
+        while names.contains("新しいスニペット\(n == 1 ? "" : " \(n)")") { n += 1 }
+        let d = SnippetDraft(name: "新しいスニペット\(n == 1 ? "" : " \(n)")", text: "")
+        drafts.append(d)
+        selection = d.id
+    }
+
+    func removeSelectedSnippet() {
+        guard let sel = selection, let i = drafts.firstIndex(where: { $0.id == sel }) else { return }
+        drafts.remove(at: i)
+        selection = drafts.isEmpty ? nil : drafts[min(i, drafts.count - 1)].id
+    }
+
+    var snippetIssues: [Int: SnippetFile.Issue] { SnippetFile.issues(in: drafts.map(\.snippet)) }
+
+    private func snippetsEdited() {
+        dirty = true
+        snippetStatus = snippetIssues.isEmpty ? "編集中…（止まると自動で保存）" : "名前が空か重複しているため、まだ保存していません"
+        saveWork?.cancel()
+        let w = DispatchWorkItem { [weak self] in self?.flushSnippets() }
+        saveWork = w
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: w)
+    }
+
+    /// 保存。名前が空・重複なら保存しない。ファイルが開いたあとに外から変わっていたら、上書きせず読み直す
+    func flushSnippets() {
+        saveWork?.cancel()
+        guard dirty else { return }
+        guard snippetIssues.isEmpty else {
+            snippetStatus = "名前が空か重複しているため、まだ保存していません"
+            return
+        }
+        if FileStamp.of(snippetsURL) != loadedStamp {
+            loadSnippets()
+            snippetStatus = "ファイルが外で変更されていたため、読み直しました（直前の編集は反映されていません）"
+            return
+        }
+        do {
+            try SnippetFile.save(drafts.map(\.snippet), to: snippetsURL)
+            loadedStamp = FileStamp.of(snippetsURL)
+            dirty = false
+            snippetStatus = "保存しました"
+            onSnippetsSaved()
+        } catch {
+            snippetStatus = "保存できませんでした: \(error.localizedDescription)"
+        }
+    }
 
     func startRecording(_ action: HotkeyAction) {
         stopRecording()
@@ -67,6 +151,13 @@ final class SettingsModel: ObservableObject {
     }
 }
 
+struct SnippetDraft: Identifiable, Equatable {
+    let id = UUID()
+    var name: String
+    var text: String
+    var snippet: Snippet { Snippet(name: name, text: text) }
+}
+
 struct SettingsView: View {
     @ObservedObject var model: SettingsModel
 
@@ -100,6 +191,53 @@ struct SettingsView: View {
                     Button("選ぶ…") { model.chooseFolder() }
                 }
                 Text("Raycast のスクリプトコマンド書式（# @raycast.title など）のヘッダを読みます。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("スニペット") {
+                HStack(alignment: .top, spacing: 12) {
+                    VStack(spacing: 4) {
+                        List(selection: $model.selection) {
+                            ForEach(Array(model.drafts.enumerated()), id: \.element.id) { i, d in
+                                HStack {
+                                    Text(d.name.isEmpty ? "（名前なし）" : d.name).lineLimit(1)
+                                    if model.snippetIssues[i] != nil {
+                                        Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+                                    }
+                                }
+                                .tag(d.id)
+                            }
+                        }
+                        .frame(width: 150, height: 150)
+                        HStack(spacing: 6) {
+                            Button { model.addSnippet() } label: { Image(systemName: "plus") }
+                            Button { model.removeSelectedSnippet() } label: { Image(systemName: "minus") }
+                                .disabled(model.selection == nil)
+                            Spacer()
+                        }
+                    }
+                    if let i = model.drafts.firstIndex(where: { $0.id == model.selection }) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            TextField("名前", text: $model.drafts[i].name)
+                            if let issue = model.snippetIssues[i] {
+                                Text(issue == .emptyName ? "名前が空です" : "同じ名前のスニペットがあります")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            TextEditor(text: $model.drafts[i].text)
+                                .font(.body)
+                                .frame(height: 100)
+                                .overlay(RoundedRectangle(cornerRadius: 4).stroke(.quaternary))
+                        }
+                    } else {
+                        Text("左の＋でスニペットを追加します。").foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                HStack {
+                    Text(model.snippetStatus).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("再読込") { model.loadSnippets() }
+                }
+                Text("入力が止まって 0.5 秒後に自動で保存します。名前が空・重複のあいだは保存しません。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("除外した項目") {

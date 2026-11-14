@@ -133,6 +133,34 @@ public enum SnippetFile {
         return (try? JSONDecoder().decode([Snippet].self, from: data)) ?? []
     }
 
+    public static func save(_ snippets: [Snippet], to url: URL) throws {
+        let enc = JSONEncoder()
+        enc.outputFormatting = [.prettyPrinted, .withoutEscapingSlashes]
+        let data = try enc.encode(snippets)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url, options: .atomic)
+    }
+
+    public enum Issue: Equatable {
+        case emptyName
+        case duplicateName
+    }
+
+    /// 保存前の検査。名前が空（空白だけも）・重複（id が snippet:<名前> のため）を、並び順の位置ごとに返す
+    public static func issues(in snippets: [Snippet]) -> [Int: Issue] {
+        var counts: [String: Int] = [:]
+        for s in snippets { counts[s.name, default: 0] += 1 }
+        var result: [Int: Issue] = [:]
+        for (i, s) in snippets.enumerated() {
+            if s.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result[i] = .emptyName
+            } else if counts[s.name, default: 0] > 1 {
+                result[i] = .duplicateName
+            }
+        }
+        return result
+    }
+
     /// 無ければ空の雛形（[]）を作る
     public static func ensureExists(at url: URL) {
         guard !FileManager.default.fileExists(atPath: url.path) else { return }

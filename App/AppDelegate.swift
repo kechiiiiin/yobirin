@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         configTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             guard let self else { return }
             if FileStamp.of(Paths.configFile) != self.configStamp { self.loadConfig() }
+            self.settingsModel?.reloadSnippetsIfIdle()
         }
 
         if !Accessibility.isTrusted {
@@ -215,6 +216,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.model.excludeSelected()
                 return nil
             }
+            if event.keyCode == 43 && mods == .command {   // ⌘,: パネルを閉じて設定を開く
+                self.hidePanel()
+                self.openSettings()
+                return nil
+            }
             var delta = 0
             switch event.keyCode {
             case 126 where mods.isEmpty: delta = -1
@@ -243,7 +249,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         // キー登録の途中で閉じても、ホットキーを外したままにしない
-        if (notification.object as? NSWindow) === settingsWindow { settingsModel?.stopRecording() }
+        if (notification.object as? NSWindow) === settingsWindow {
+            settingsModel?.stopRecording()
+            settingsModel?.flushSnippets()
+        }
     }
 
     func windowDidResignKey(_ notification: Notification) {
@@ -283,6 +292,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 // 登録中は既存のホットキーを外し、押した組み合わせがそのまま届くようにする
                 if recording { HotkeyManager.shared.unregisterAll() } else { self?.registerHotkeys() }
             }
+            sm.onSnippetsSaved = { [weak self] in self?.catalog.reloadSnippets() }
             settingsModel = sm
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
@@ -294,6 +304,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsWindow = w
         }
         settingsModel?.config = config
+        settingsModel?.reloadSnippetsIfIdle()
         NSApp.activate(ignoringOtherApps: true)
         settingsWindow?.makeKeyAndOrderFront(nil)
     }

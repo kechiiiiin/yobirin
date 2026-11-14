@@ -203,9 +203,9 @@ struct LauncherView: View {
         case .output: return "⎋ 戻る"
         default:
             if let item = model.selectedItem, case .script(let s) = item.action, s.argument1 != nil {
-                return "↩ / ⇥ 引数を入れる　↑↓ 選ぶ　⌘⌫ 除外　⎋ 閉じる"
+                return "↩ / ⇥ 引数を入れる　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
             }
-            return "↩ 実行　↑↓ 選ぶ　⌘⌫ 除外　⎋ 閉じる"
+            return "↩ 実行　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
         }
     }
 }

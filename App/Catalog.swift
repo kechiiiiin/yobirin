@@ -124,6 +124,12 @@ final class Catalog {
         scanApps()
     }
 
+    /// スニペットだけ読み直す（設定画面で保存した直後など）
+    func reloadSnippets() {
+        snippetStamp = FileStamp.of(Paths.snippetsFile)
+        snippets = SnippetFile.load(from: Paths.snippetsFile)
+    }
+
     private func scanApps() {
         guard !scanning else { return }
         scanning = true
