@@ -341,3 +341,74 @@ final class SnippetFileTests: XCTestCase {
         XCTAssertTrue(SnippetFile.issues(in: []).isEmpty)
     }
 }
+
+final class SystemSettingsParserTests: XCTestCase {
+    // 実物の形を真似たダミー（実在の設定は読まない）
+    let info: [String: Any] = [
+        "CFBundleIdentifier": "com.example.Dummy-Settings.extension",
+        "CFBundleDisplayName": "Dummy Display",
+        "CFBundleName": "DummyExt",
+        "EXAppExtensionAttributes": ["EXExtensionPointIdentifier": "com.apple.Settings.extension.ui"],
+    ]
+
+    func testIsSettingsExtension() {
+        XCTAssertTrue(SystemSettingsParser.isSettingsExtension(info: info))
+        var other = info
+        other["EXAppExtensionAttributes"] = ["EXExtensionPointIdentifier": "com.apple.appintents-extension"]
+        XCTAssertFalse(SystemSettingsParser.isSettingsExtension(info: other))
+        XCTAssertFalse(SystemSettingsParser.isSettingsExtension(info: ["CFBundleIdentifier": "x"]))
+    }
+
+    func testNamesFromLoctable() {
+        let loc: [String: Any] = [
+            "ja": ["CFBundleDisplayName": "ディスプレイ"],
+            "en": ["CFBundleDisplayName": "Displays", "CFBundleName": "DisplaysExt"],
+        ]
+        let n = SystemSettingsParser.names(info: info, loctable: loc)
+        XCTAssertEqual(n.ja, "ディスプレイ")
+        XCTAssertEqual(n.en, "Displays")
+    }
+
+    func testEnglishFallsBackToInfoAndJapaneseToStrings() {
+        let n = SystemSettingsParser.names(info: info, loctable: nil, lprojStrings: ["ja": ["CFBundleName": "ダミー"]])
+        XCTAssertEqual(n.ja, "ダミー")
+        XCTAssertEqual(n.en, "Dummy Display")
+        let none = SystemSettingsParser.names(info: ["CFBundleName": "FooExtension"], loctable: [:])
+        XCTAssertNil(none.ja)
+        XCTAssertNil(none.en)
+    }
+
+    func testPaneAndURL() throws {
+        let p = try XCTUnwrap(SystemSettingsParser.pane(bundleID: "com.apple.Displays-Settings.extension", ja: "ディスプレイ",
+                                                         en: "Displays", fileBaseName: "DisplaysExt", source: .settingsExtension))
+        XCTAssertEqual(p.title, "ディスプレイ")
+        XCTAssertEqual(p.names, ["ディスプレイ", "Displays", "DisplaysExt"])
+        XCTAssertEqual(p.id, "settings:com.apple.Displays-Settings.extension")
+        XCTAssertEqual(p.url?.absoluteString, "x-apple.systempreferences:com.apple.Displays-Settings.extension")
+        XCTAssertNil(SystemSettingsParser.pane(bundleID: "a", ja: nil, en: "XExtension", fileBaseName: nil, source: .settingsExtension))
+    }
+
+    func testScanDummyFolders() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("yobirin-ss-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        let ext = root.appendingPathComponent("Ext")
+        func write(_ dict: [String: Any], to url: URL) throws {
+            try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try PropertyListSerialization.data(fromPropertyList: dict, format: .binary, options: 0).write(to: url)
+        }
+        try write(info, to: ext.appendingPathComponent("Dummy.appex/Contents/Info.plist"))
+        try write(["ja": ["CFBundleDisplayName": "ダミー設定"]], to: ext.appendingPathComponent("Dummy.appex/Contents/Resources/InfoPlist.loctable"))
+        var notSettings = info
+        notSettings["CFBundleIdentifier"] = "com.example.Other"
+        notSettings["EXAppExtensionAttributes"] = ["EXExtensionPointIdentifier": "com.apple.appintents-extension"]
+        try write(notSettings, to: ext.appendingPathComponent("Other.appex/Contents/Info.plist"))
+        let pp = root.appendingPathComponent("PP")
+        try write(["CFBundleIdentifier": "com.example.pane", "CFBundleName": "ThirdPane"], to: pp.appendingPathComponent("Third.prefPane/Contents/Info.plist"))
+
+        let panes = SystemSettingsScanner.scan(extensionsFolder: ext, prefPaneFolders: [pp])
+        XCTAssertEqual(panes.map(\.bundleID), ["com.example.Dummy-Settings.extension", "com.example.pane"])
+        XCTAssertEqual(panes[0].title, "ダミー設定")
+        if case .prefPane(let path) = panes[1].source { XCTAssertTrue(path.hasSuffix("/PP/Third.prefPane")) } else { XCTFail() }
+    }
+}

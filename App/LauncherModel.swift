@@ -208,6 +208,10 @@ final class LauncherModel: ObservableObject {
             } else {
                 runScript(s, argument: nil)
             }
+        case .openSettings(let pane):
+            usage.record(item.id)
+            onClose()
+            openSettings(pane)
         case .snippet(let text):
             usage.record(item.id)
             onClose()
@@ -232,6 +236,27 @@ final class LauncherModel: ObservableObject {
                 onBuiltin(b)
             }
         }
+    }
+
+    /// 設定拡張は x-apple.systempreferences:<bundle id> を開く。開けない・prefPane はシステム設定に渡す（open -b com.apple.systempreferences <path> 相当）
+    private func openSettings(_ pane: SettingsPane) {
+        let ws = NSWorkspace.shared
+        if case .prefPane(let path) = pane.source {
+            openPrefPane(path)
+            return
+        }
+        guard let url = pane.url else { return }
+        if !ws.open(url) {
+            launcherLog.error("設定の URL を開けませんでした: \(url.absoluteString, privacy: .public)")
+            NSSound.beep()
+        }
+    }
+
+    private func openPrefPane(_ path: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        p.arguments = ["-b", "com.apple.systempreferences", path]
+        do { try p.run() } catch { NSSound.beep() }
     }
 
     /// Default プロフィールの Chrome で開く（open -na "Google Chrome" --args --profile-directory=Default <url>）

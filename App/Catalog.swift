@@ -58,6 +58,7 @@ enum ItemAction {
     case snippet(String)
     case clipboard(ClipboardEntry)
     case builtin(Builtin)
+    case openSettings(SettingsPane)
 }
 
 struct ResultItem: Identifiable {
@@ -83,10 +84,13 @@ final class Catalog {
     private(set) var bookmarks: [Bookmark] = []
     private(set) var scripts: [ScriptCommand] = []
     private(set) var snippets: [Snippet] = []
+    private(set) var settingsPanes: [SettingsPane] = []
 
     private var bookmarkStamp: FileStamp?
     private var snippetStamp: FileStamp?
     private var scanning = false
+    private var settingsLoaded = false
+    private var scanningSettings = false
 
     var scriptsFolder: URL = Paths.expand(Paths.defaultScriptsFolder)
 
@@ -97,6 +101,8 @@ final class Catalog {
         self.apps = apps
         self.snippets = snippets
     }
+
+    static let systemSettingsAppPath = "/System/Applications/System Settings.app"
 
     static let appFolders: [URL] = [
         URL(fileURLWithPath: "/Applications"),
@@ -122,12 +128,27 @@ final class Catalog {
         }
         scripts = RaycastScriptParser.scan(folder: scriptsFolder)
         scanApps()
+        if force || !settingsLoaded { scanSettings() }
     }
 
     /// スニペットだけ読み直す（設定画面で保存した直後など）
     func reloadSnippets() {
         snippetStamp = FileStamp.of(Paths.snippetsFile)
         snippets = SnippetFile.load(from: Paths.snippetsFile)
+    }
+
+    /// システム設定の項目。起動時と「再読込」で裏スレッドで読む
+    private func scanSettings() {
+        guard !scanningSettings else { return }
+        scanningSettings = true
+        settingsLoaded = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let found = SystemSettingsScanner.scan()
+            DispatchQueue.main.async {
+                self.settingsPanes = found
+                self.scanningSettings = false
+            }
+        }
     }
 
     private func scanApps() {
@@ -183,6 +204,10 @@ final class Catalog {
         for b in Builtin.allCases {
             items.append(ResultItem(id: "builtin:" + b.rawValue, title: b.title, subtitle: "", kind: "コマンド",
                                     icon: .symbol(b.symbol), action: .builtin(b), searchTexts: [b.title] + b.keywords))
+        }
+        for p in settingsPanes {
+            items.append(ResultItem(id: p.id, title: p.title, subtitle: "システム設定", kind: "設定",
+                                    icon: .file(Catalog.systemSettingsAppPath), action: .openSettings(p), searchTexts: p.names))
         }
         for s in scripts {
             items.append(scriptItem(s))
