@@ -59,18 +59,23 @@ public struct Config: Codable, Equatable {
     public var launchAtLogin: Bool
     /// 検索結果から除外した項目の id（app:パス・bookmark:URL・script:パス・snippet:名前）
     public var excluded: [String]
+    /// hotkeys に加えて登録するキー（1 つの操作に複数のキー）。設定画面には出さず、ファイルで書く
+    /// 例: パスワード欄では ⌥ だけのキーが文字入力に取られるので、⌃⌥V を足しておく
+    public var extraHotkeys: [String: [Hotkey]]
 
     public init(hotkeys: [String: Hotkey] = [HotkeyAction.launcher.rawValue: .defaultLauncher],
                 scriptsFolder: String = Paths.defaultScriptsFolder,
                 launchAtLogin: Bool = true,
-                excluded: [String] = []) {
+                excluded: [String] = [],
+                extraHotkeys: [String: [Hotkey]] = [:]) {
         self.hotkeys = hotkeys
         self.scriptsFolder = scriptsFolder
         self.launchAtLogin = launchAtLogin
         self.excluded = excluded
+        self.extraHotkeys = extraHotkeys
     }
 
-    enum CodingKeys: String, CodingKey { case hotkeys, scriptsFolder, launchAtLogin, excluded }
+    enum CodingKeys: String, CodingKey { case hotkeys, scriptsFolder, launchAtLogin, excluded, extraHotkeys }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -83,6 +88,17 @@ public struct Config: Codable, Equatable {
         scriptsFolder = try c.decodeIfPresent(String.self, forKey: .scriptsFolder) ?? Paths.defaultScriptsFolder
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? true
         excluded = try c.decodeIfPresent([String].self, forKey: .excluded) ?? []
+        extraHotkeys = try c.decodeIfPresent([String: [Hotkey]].self, forKey: .extraHotkeys) ?? [:]
+    }
+
+    /// 書き出しでは、追加キーが無いときは extraHotkeys を省く（既存の config.json の見た目を変えない）
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(hotkeys, forKey: .hotkeys)
+        try c.encode(scriptsFolder, forKey: .scriptsFolder)
+        try c.encode(launchAtLogin, forKey: .launchAtLogin)
+        try c.encode(excluded, forKey: .excluded)
+        if !extraHotkeys.isEmpty { try c.encode(extraHotkeys, forKey: .extraHotkeys) }
     }
 
     /// 除外リストの id から、設定画面に出す名前を作る（アプリ・スクリプトはファイル名、スニペットは名前、ブックマークは URL）
@@ -98,6 +114,15 @@ public struct Config: Codable, Equatable {
     }
 
     public func hotkey(_ action: HotkeyAction) -> Hotkey? { hotkeys[action.rawValue] }
+
+    /// その操作に登録する全部のキー（hotkeys の 1 つ＋extraHotkeys。重複は除く）
+    public func allHotkeys(_ action: HotkeyAction) -> [Hotkey] {
+        var result: [Hotkey] = []
+        for k in [hotkey(action)].compactMap({ $0 }) + (extraHotkeys[action.rawValue] ?? []) where !result.contains(k) {
+            result.append(k)
+        }
+        return result
+    }
 
     public mutating func setHotkey(_ action: HotkeyAction, _ key: Hotkey?) {
         hotkeys[action.rawValue] = key

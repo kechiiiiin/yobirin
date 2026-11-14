@@ -295,6 +295,32 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(Config.displayName(forExcludedID: "snippet:署名"), "署名")
         XCTAssertEqual(Config.displayName(forExcludedID: "bookmark:https://a.b/"), "https://a.b/")
     }
+
+    func testExtraHotkeysAddToMainKeyWithoutDuplicates() throws {
+        let json = #"""
+        {"hotkeys": {"snippets": {"keyCode": 9, "modifiers": 2048}},
+         "extraHotkeys": {"snippets": [{"keyCode": 9, "modifiers": 6144}, {"keyCode": 9, "modifiers": 2048}],
+                          "windowMaximize": [{"keyCode": 126, "modifiers": 4608}]}}
+        """#
+        let c = try JSONDecoder().decode(Config.self, from: Data(json.utf8))
+        XCTAssertEqual(c.allHotkeys(.snippets), [Hotkey(keyCode: 9, modifiers: 2048), Hotkey(keyCode: 9, modifiers: 6144)])
+        // 主のキーが無くても、追加キーだけで登録できる
+        XCTAssertEqual(c.allHotkeys(.windowMaximize), [Hotkey(keyCode: 126, modifiers: 4608)])
+        XCTAssertEqual(c.allHotkeys(.clipboard), [])
+    }
+
+    func testExtraHotkeysRoundTripAndOmittedWhenEmpty() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yobirin-cfg-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Config().save(to: url)
+        XCTAssertFalse(try String(contentsOf: url, encoding: .utf8).contains("extraHotkeys"))
+        XCTAssertEqual(Config.load(from: url).extraHotkeys, [:])
+
+        var c = Config()
+        c.extraHotkeys = ["clipboard": [Hotkey(keyCode: 8, modifiers: 6144)]]
+        try c.save(to: url)
+        XCTAssertEqual(Config.load(from: url), c)
+    }
 }
 
 final class SnippetFileTests: XCTestCase {

@@ -93,6 +93,17 @@ echo "こんにちは、$1"
 
 `hotkeys` のキーは `launcher`・`snippets`・`clipboard`・`windowLeft`・`windowRight`・`windowMaximize`。`modifiers` は Carbon の値の和（⌘=256・⇧=512・⌥=2048・⌃=4096）。設定画面では欄を押してからキーを押せば登録できます。
 
+1 つの操作に別のキーも足したいときは `extraHotkeys` に書きます（設定画面には出ません。`hotkeys` のキーと重複するものは無視します）。
+
+```json
+"extraHotkeys": {
+  "snippets":  [{ "keyCode": 9, "modifiers": 6144 }],
+  "clipboard": [{ "keyCode": 8, "modifiers": 6144 }]
+}
+```
+
+パスワード欄にカーソルがある間（macOS の Secure Event Input が有効な間）は、⌥ だけのキー（⌥V・⌥C など）が文字入力に取られて届きません。⌃⌥V（6144）のように ⌃ か ⌘ を含むキーは届きます。上の例はそのための追加です（macOS 26.7.1 で確認）。
+
 使用履歴（並び順に使う）は `~/Library/Application Support/yobirin/usage.json`。
 
 ## 初回だけの手作業

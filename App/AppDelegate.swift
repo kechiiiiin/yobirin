@@ -132,8 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let hk = HotkeyManager.shared
         hk.unregisterAll()
         for action in HotkeyAction.allCases {
-            guard let key = config.hotkey(action) else { continue }
-            hk.register(key, label: action.label) { [weak self] in self?.handleHotkey(action) }
+            for key in config.allHotkeys(action) {
+                hk.register(key, label: action.label) { [weak self] in self?.handleHotkey(action) }
+            }
         }
         if !hk.failures.isEmpty {
             HUD.show("登録できなかったキー: " + hk.failures.joined(separator: "、"), duration: 3)
