@@ -43,8 +43,7 @@ struct SearchField: NSViewRepresentable {
             // 日本語の変換中は IME に任せる
             if textView.hasMarkedText() { return false }
             switch sel {
-            case #selector(NSResponder.moveUp(_:)): model.move(-1); return true
-            case #selector(NSResponder.moveDown(_:)): model.move(1); return true
+            // ↑↓・⌃P/⌃N は AppDelegate のローカルモニタで処理する（ここでは二重に動かさない）
             case #selector(NSResponder.insertNewline(_:)): model.enter(); return true
             case #selector(NSResponder.insertTab(_:)): model.tab(); return true
             case #selector(NSResponder.cancelOperation(_:)): model.escape(); return true

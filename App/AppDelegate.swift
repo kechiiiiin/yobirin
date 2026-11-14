@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsWindow: NSWindow?
     private var settingsModel: SettingsModel?
     private var mouseMonitor: Any?
+    private var keyMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         prepareFiles()
@@ -179,6 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard let self, self.panel.isVisible else { return }
             self.model.refilter()
         }
+        installKeyMonitor()
         if mouseMonitor == nil {
             mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
                 self?.hidePanel()
@@ -186,7 +188,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    /// ↑↓・⌃P/⌃N で選択を動かす。
+    /// フィールドエディタの doCommandBy 経由だと、非アクティブ化パネルで moveUp:/moveDown: が届かないことがあったため、
+    /// パネル表示中だけ付ける keyDown のローカルモニタで確実に拾う（変換中は IME に任せてそのまま返す）。
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, self.panel.isVisible, event.window === self.panel else { return event }
+            if let editor = self.panel.firstResponder as? NSTextView, editor.hasMarkedText() { return event }
+            let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            var delta = 0
+            switch event.keyCode {
+            case 126 where mods.isEmpty: delta = -1
+            case 125 where mods.isEmpty: delta = 1
+            case 35 where mods == .control: delta = -1   // ⌃P
+            case 45 where mods == .control: delta = 1    // ⌃N
+            default: return event
+            }
+            self.model.move(delta)
+            return nil
+        }
+    }
+
     private func hidePanel() {
+        if let m = keyMonitor {
+            NSEvent.removeMonitor(m)
+            keyMonitor = nil
+        }
         if let m = mouseMonitor {
             NSEvent.removeMonitor(m)
             mouseMonitor = nil
