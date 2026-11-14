@@ -195,6 +195,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         panel.orderOut(nil)
     }
 
+    func windowWillClose(_ notification: Notification) {
+        // キー登録の途中で閉じても、ホットキーを外したままにしない
+        if (notification.object as? NSWindow) === settingsWindow { settingsModel?.stopRecording() }
+    }
+
     func windowDidResignKey(_ notification: Notification) {
         if (notification.object as? NSWindow) === panel { hidePanel() }
     }
@@ -236,6 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 520, height: 420),
                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
             w.title = "呼鈴の設定"
+            w.delegate = self
             w.isReleasedWhenClosed = false
             w.contentView = NSHostingView(rootView: SettingsView(model: sm))
             w.center()
