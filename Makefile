@@ -2,7 +2,7 @@
 #
 #   make build     Release ビルド（Apple Development 証明書で署名）→ build/Build/Products/Release/Yobirin.app
 #   make install   ~/Applications/呼鈴.app へ入れ直して起動する
-#   make test      ユニットテスト（YobirinCore）。テストだけは ad-hoc 署名で回す
+#   make test      ユニットテスト（YobirinCore と検索パネル）。テストだけは ad-hoc 署名で回す
 #   make generate  project.yml から yobirin.xcodeproj を作る（各ターゲットが先に呼ぶ）
 #
 # ⚠️ アクセシビリティの許可は署名が変わると外れる。毎回同じ Apple Development 証明書で署名する。

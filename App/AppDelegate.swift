@@ -28,7 +28,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var mouseMonitor: Any?
     private var keyMonitor: Any?
 
+    /// テスト（YobirinAppTests）のホストとして起動されたとき。ホットキー・メニューバー・監視などは立ち上げない
+    static var isRunningTests: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if Self.isRunningTests { return }
         prepareFiles()
         setUpStatusItem()
         setUpPanel()
@@ -195,6 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.panel.isVisible, event.window === self.panel else { return event }
+            launcherLog.info("keyDown モニタ: keyCode \(event.keyCode)")
             if let editor = self.panel.firstResponder as? NSTextView, editor.hasMarkedText() { return event }
             let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
             var delta = 0

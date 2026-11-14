@@ -150,9 +150,10 @@ struct LauncherView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 2) {
+                            // 行の同一性は item.id だけにする。以前は .id(idx) を重ねていたため、LazyVStack が
+                            // 「同じ番号の行は同じもの」とみなして描き直さず、絞り込み・選択の変化が画面に出なかった
                             ForEach(Array(model.items.enumerated()), id: \.element.id) { idx, item in
                                 row(item, selected: idx == model.selected)
-                                    .id(idx)
                                     .contentShape(Rectangle())
                                     .onTapGesture {
                                         model.selected = idx
@@ -162,8 +163,8 @@ struct LauncherView: View {
                         }
                         .padding(6)
                     }
-                    .onChange(of: model.selected) { _, new in
-                        proxy.scrollTo(new)
+                    .onChange(of: model.selectedItem?.id) { _, id in
+                        if let id { proxy.scrollTo(id) }
                     }
                 }
             }

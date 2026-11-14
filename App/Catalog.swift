@@ -90,6 +90,14 @@ final class Catalog {
 
     var scriptsFolder: URL = Paths.expand(Paths.defaultScriptsFolder)
 
+    init() {}
+
+    /// テスト用: 探す対象を差し込む（ファイルやアプリフォルダは読まない）
+    init(apps: [AppEntry], snippets: [Snippet] = []) {
+        self.apps = apps
+        self.snippets = snippets
+    }
+
     static let appFolders: [URL] = [
         URL(fileURLWithPath: "/Applications"),
         URL(fileURLWithPath: "/System/Applications"),

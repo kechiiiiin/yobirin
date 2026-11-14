@@ -1,6 +1,10 @@
 import AppKit
+import os
 import SwiftUI
 import YobirinCore
+
+/// 診断用。log show --predicate 'subsystem == "jp.kechiiiiin.yobirin"' --info で読む
+let launcherLog = Logger(subsystem: "jp.kechiiiiin.yobirin", category: "launcher")
 
 enum LauncherMode: Equatable {
     case all
@@ -11,7 +15,14 @@ enum LauncherMode: Equatable {
 }
 
 final class LauncherModel: ObservableObject {
-    @Published var query = "" { didSet { if query != oldValue { selected = 0; refilter() } } }
+    @Published var query = "" {
+        didSet {
+            guard query != oldValue else { return }
+            launcherLog.info("query 変更: \(self.query, privacy: .public)")
+            selected = 0
+            refilter()
+        }
+    }
     @Published private(set) var items: [ResultItem] = []
     @Published var selected = 0
     @Published private(set) var mode: LauncherMode = .all
@@ -89,7 +100,11 @@ final class LauncherModel: ObservableObject {
         case .argument, .output:
             items = []
         }
+        // 同じ id が二つあると ForEach の描画が崩れるので、先に出たほうだけ残す（ブックマークの重複など）
+        var seen = Set<String>()
+        items = items.filter { seen.insert($0.id).inserted }
         selected = min(selected, max(items.count - 1, 0))
+        launcherLog.info("refilter: \(self.items.count) 件（query: \(self.query, privacy: .public)）")
     }
 
     private func clipboardItem(_ e: ClipboardEntry) -> ResultItem {
@@ -112,8 +127,12 @@ final class LauncherModel: ObservableObject {
     // MARK: - キー操作
 
     func move(_ delta: Int) {
-        guard !items.isEmpty else { return }
+        guard !items.isEmpty else {
+            launcherLog.info("move \(delta): 一覧が空なので動かさない")
+            return
+        }
         selected = (selected + delta + items.count) % items.count
+        launcherLog.info("move \(delta): selected = \(self.selected) / \(self.items.count)")
     }
 
     var selectedItem: ResultItem? { items.indices.contains(selected) ? items[selected] : nil }

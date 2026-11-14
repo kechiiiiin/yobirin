@@ -70,17 +70,37 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.yobirin.tests
         GENERATE_INFOPLIST_FILE: YES
 
+  # 画面側（App/）のテスト。呼鈴.app をテストホストにする（AppKit のウインドウが要るため）。
+  # テスト中の呼鈴はホットキー・メニューバー等を立ち上げない（AppDelegate.isRunningTests）
+  YobirinAppTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: AppTests
+    dependencies:
+      - target: Yobirin
+      - target: YobirinCore
+        embed: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.yobirin.apptests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Yobirin.app/Contents/MacOS/Yobirin"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
 schemes:
   Yobirin:
     build:
       targets:
         Yobirin: all
         YobirinCoreTests: [test]
+        YobirinAppTests: [test]
     run:
       config: Debug
     test:
       config: Debug
       targets:
         - YobirinCoreTests
+        - YobirinAppTests
     archive:
       config: Release
