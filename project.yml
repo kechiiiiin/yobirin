@@ -1,0 +1,86 @@
+name: yobirin
+
+options:
+  bundleIdPrefix: jp.kechiiiiin
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  minimumXcodeGenVersion: "2.40.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    DEAD_CODE_STRIPPING: YES
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    # アクセシビリティの許可は署名が変わると外れるので、毎回同じ Apple Development 証明書で署名する。
+    # ad-hoc（"-"）にはしない。テストだけは make test で ad-hoc に上書きする
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Apple Development"
+    DEVELOPMENT_TEAM: 7Z4R4TQPZL
+    ENABLE_HARDENED_RUNTIME: NO
+
+targets:
+  YobirinCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Core
+    settings:
+      base:
+        PRODUCT_NAME: YobirinCore
+        PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.yobirin.core
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+
+  Yobirin:
+    type: application
+    platform: macOS
+    sources:
+      - path: App
+        excludes:
+          - "Info.plist"
+    dependencies:
+      - target: YobirinCore
+        embed: true
+      - sdk: Carbon.framework
+      - sdk: ServiceManagement.framework
+    settings:
+      base:
+        PRODUCT_NAME: Yobirin
+        PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.yobirin
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: App/Info.plist
+        ENABLE_APP_SANDBOX: NO
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+
+  YobirinCoreTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: YobirinCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.kechiiiiin.yobirin.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  Yobirin:
+    build:
+      targets:
+        Yobirin: all
+        YobirinCoreTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - YobirinCoreTests
+    archive:
+      config: Release
