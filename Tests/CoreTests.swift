@@ -273,4 +273,26 @@ final class ConfigTests: XCTestCase {
         XCTAssertTrue(c.launchAtLogin)
         XCTAssertEqual(Config().hotkey(.launcher), .defaultLauncher)
     }
+
+    func testExcludedDefaultsToEmptyForOldFile() throws {
+        let c = try JSONDecoder().decode(Config.self, from: Data(#"{"launchAtLogin": false}"#.utf8))
+        XCTAssertEqual(c.excluded, [])
+    }
+
+    func testExcludedRoundTrip() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("yobirin-cfg-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var c = Config()
+        c.excluded = ["app:/Applications/Chess.app", "bookmark:https://example.com/"]
+        try c.save(to: url)
+        XCTAssertEqual(Config.load(from: url).excluded, c.excluded)
+        XCTAssertTrue(try String(contentsOf: url, encoding: .utf8).contains("\"excluded\""))
+    }
+
+    func testDisplayNameForExcludedID() {
+        XCTAssertEqual(Config.displayName(forExcludedID: "app:/Applications/Chess.app"), "Chess")
+        XCTAssertEqual(Config.displayName(forExcludedID: "script:/x/y/hello.sh"), "hello.sh")
+        XCTAssertEqual(Config.displayName(forExcludedID: "snippet:署名"), "署名")
+        XCTAssertEqual(Config.displayName(forExcludedID: "bookmark:https://a.b/"), "https://a.b/")
+    }
 }

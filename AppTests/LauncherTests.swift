@@ -49,6 +49,40 @@ final class LauncherTests: XCTestCase {
         XCTAssertEqual(model.selected, 0)
     }
 
+    func testRefilterDropsExcluded() {
+        let model = makeModel()
+        model.query = "cl"
+        XCTAssertTrue(model.items.map(\.title).contains("Claude"))
+        model.excluded = ["app:/nonexistent/yobirin-tests/Claude.app"]
+        model.refilter()
+        XCTAssertFalse(model.items.map(\.title).contains("Claude"))
+        model.reset(to: .snippets)
+        XCTAssertEqual(model.items.count, 1)   // 同名は先に出たほうだけ
+        model.excluded = ["snippet:同じ名前"]
+        model.refilter()
+        XCTAssertTrue(model.items.isEmpty)
+    }
+
+    func testExcludeSelectedKeepsIndexAndSkipsBuiltin() {
+        let model = makeModel()
+        model.query = "cl"
+        let titles = model.items.map(\.title)
+        XCTAssertGreaterThan(titles.count, 2)
+        model.selected = 1
+        var got: ResultItem?
+        model.onExclude = { got = $0 }
+        XCTAssertTrue(model.excludeSelected())
+        XCTAssertEqual(got?.title, titles[1])
+        XCTAssertEqual(model.selected, 1)
+        XCTAssertEqual(model.items.first(where: { $0.title == titles[1] })?.title, nil)
+        XCTAssertEqual(model.selectedItem?.title, titles[2])
+        // 組み込みコマンドは対象外
+        model.query = "呼鈴の設定"
+        XCTAssertEqual(model.selectedItem?.title, "呼鈴の設定")
+        XCTAssertFalse(model.excludeSelected())
+        XCTAssertTrue(model.excluded.count == 1)
+    }
+
     func testMoveWrapsAndQueryResetsSelection() {
         let model = makeModel()
         model.query = "c"

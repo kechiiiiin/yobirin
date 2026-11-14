@@ -38,6 +38,10 @@ final class LauncherModel: ObservableObject {
     var onClose: () -> Void = {}
     /// 組み込みコマンドの実行
     var onBuiltin: (Builtin) -> Void = { _ in }
+    /// 除外した項目の id。検索欄とスニペット一覧から落とす（設定の excluded と同じ）
+    var excluded: Set<String> = []
+    /// 除外したとき（設定へ保存・HUD は呼び出し側）
+    var onExclude: (ResultItem) -> Void = { _ in }
 
     init(catalog: Catalog, usage: UsageStore, clipboard: ClipboardStore) {
         self.catalog = catalog
@@ -78,11 +82,11 @@ final class LauncherModel: ObservableObject {
         let now = Date()
         switch mode {
         case .all:
-            let all = catalog.allItems()
+            let all = catalog.allItems().filter { !excluded.contains($0.id) }
             let idx = Ranker.rank(all.map { RankCandidate(id: $0.id, texts: $0.searchTexts) }, query: query, usage: usage.records, now: now)
             items = idx.map { all[$0] }
         case .snippets:
-            let all = catalog.snippetItems()
+            let all = catalog.snippetItems().filter { !excluded.contains($0.id) }
             if query.trimmingCharacters(in: .whitespaces).isEmpty {
                 items = all
             } else {
@@ -136,6 +140,25 @@ final class LauncherModel: ObservableObject {
     }
 
     var selectedItem: ResultItem? { items.indices.contains(selected) ? items[selected] : nil }
+
+    /// ⌘⌫: 選択中の項目を検索結果から除外する。対象はアプリ・ブックマーク・スクリプト・スニペットだけ
+    /// （組み込みコマンド・クリップボード履歴・引数入力・出力表示中は何もしない）。選択位置は変えず、次の行が繰り上がる
+    @discardableResult
+    func excludeSelected() -> Bool {
+        switch mode {
+        case .all, .snippets: break
+        default: return false
+        }
+        guard let item = selectedItem else { return false }
+        switch item.action {
+        case .builtin, .clipboard: return false
+        default: break
+        }
+        excluded.insert(item.id)
+        refilter()
+        onExclude(item)
+        return true
+    }
 
     /// Tab: 引数のあるスクリプトなら引数入力へ
     func tab() {

@@ -57,16 +57,20 @@ public struct Config: Codable, Equatable {
     public var hotkeys: [String: Hotkey]
     public var scriptsFolder: String
     public var launchAtLogin: Bool
+    /// 検索結果から除外した項目の id（app:パス・bookmark:URL・script:パス・snippet:名前）
+    public var excluded: [String]
 
     public init(hotkeys: [String: Hotkey] = [HotkeyAction.launcher.rawValue: .defaultLauncher],
                 scriptsFolder: String = Paths.defaultScriptsFolder,
-                launchAtLogin: Bool = true) {
+                launchAtLogin: Bool = true,
+                excluded: [String] = []) {
         self.hotkeys = hotkeys
         self.scriptsFolder = scriptsFolder
         self.launchAtLogin = launchAtLogin
+        self.excluded = excluded
     }
 
-    enum CodingKeys: String, CodingKey { case hotkeys, scriptsFolder, launchAtLogin }
+    enum CodingKeys: String, CodingKey { case hotkeys, scriptsFolder, launchAtLogin, excluded }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -78,6 +82,19 @@ public struct Config: Codable, Equatable {
         }
         scriptsFolder = try c.decodeIfPresent(String.self, forKey: .scriptsFolder) ?? Paths.defaultScriptsFolder
         launchAtLogin = try c.decodeIfPresent(Bool.self, forKey: .launchAtLogin) ?? true
+        excluded = try c.decodeIfPresent([String].self, forKey: .excluded) ?? []
+    }
+
+    /// 除外リストの id から、設定画面に出す名前を作る（アプリ・スクリプトはファイル名、スニペットは名前、ブックマークは URL）
+    public static func displayName(forExcludedID id: String) -> String {
+        if id.hasPrefix("app:") || id.hasPrefix("script:") {
+            let path = String(id[id.index(after: id.firstIndex(of: ":")!)...])
+            let base = (path as NSString).lastPathComponent
+            return id.hasPrefix("app:") ? (base as NSString).deletingPathExtension : base
+        }
+        if id.hasPrefix("snippet:") { return String(id.dropFirst(8)) }
+        if id.hasPrefix("bookmark:") { return String(id.dropFirst(9)) }
+        return id
     }
 
     public func hotkey(_ action: HotkeyAction) -> Hotkey? { hotkeys[action.rawValue] }

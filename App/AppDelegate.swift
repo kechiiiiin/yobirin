@@ -79,6 +79,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model = LauncherModel(catalog: catalog, usage: usage, clipboard: clipboardStore)
         model.onClose = { [weak self] in self?.hidePanel() }
         model.onBuiltin = { [weak self] b in self?.runBuiltin(b) }
+        model.excluded = Set(config.excluded)
+        model.onExclude = { [weak self] item in
+            guard let self else { return }
+            var c = self.config
+            if !c.excluded.contains(item.id) { c.excluded.append(item.id) }
+            self.saveConfig(c)
+            HUD.show("除外しました: \(item.title)")
+        }
 
         panel = LauncherPanel(contentRect: NSRect(x: 0, y: 0, width: 700, height: 460),
                               styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
@@ -106,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         catalog.scriptsFolder = folder
         registerHotkeys()
         applyLoginItem()
+        model?.excluded = Set(config.excluded)
         settingsModel?.config = config
     }
 
@@ -202,6 +211,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             launcherLog.info("keyDown モニタ: keyCode \(event.keyCode)")
             if let editor = self.panel.firstResponder as? NSTextView, editor.hasMarkedText() { return event }
             let mods = event.modifierFlags.intersection([.command, .option, .control, .shift])
+            if event.keyCode == 51 && mods == .command {   // ⌘⌫: 選択中の項目を除外
+                self.model.excludeSelected()
+                return nil
+            }
             var delta = 0
             switch event.keyCode {
             case 126 where mods.isEmpty: delta = -1

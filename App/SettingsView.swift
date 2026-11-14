@@ -48,6 +48,11 @@ final class SettingsModel: ObservableObject {
         onSave(config)
     }
 
+    func restore(_ id: String) {
+        config.excluded.removeAll { $0 == id }
+        onSave(config)
+    }
+
     func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
@@ -96,6 +101,23 @@ struct SettingsView: View {
                 }
                 Text("Raycast のスクリプトコマンド書式（# @raycast.title など）のヘッダを読みます。")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("除外した項目") {
+                if model.config.excluded.isEmpty {
+                    Text("なし。検索欄で項目を選んで ⌘⌫ を押すと、ここに入ります。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                ForEach(model.config.excluded, id: \.self) { id in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(Config.displayName(forExcludedID: id)).lineLimit(1)
+                            Text(id).font(.caption).foregroundStyle(.secondary)
+                                .lineLimit(1).truncationMode(.middle)
+                        }
+                        Spacer()
+                        Button("戻す") { model.restore(id) }
+                    }
+                }
             }
             Section("その他") {
                 Toggle("ログイン時に起動", isOn: Binding(
