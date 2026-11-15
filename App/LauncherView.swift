@@ -146,6 +146,8 @@ struct LauncherView: View {
                 Text(model.query.isEmpty && model.mode == .all ? "打ち始めると、アプリ・ブックマーク・スクリプト・スニペットから探します" : "見つかりません")
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if model.mode == .emoji {
+                emojiGrid
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
@@ -169,6 +171,38 @@ struct LauncherView: View {
                 }
             }
         }
+    }
+
+    /// 絵文字は格子に並べる（1 行 LauncherModel.emojiColumns 個）。選んでいるものの名前は下の欄に出す
+    private var emojiGrid: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: LauncherModel.emojiColumns), spacing: 4) {
+                    ForEach(Array(model.items.enumerated()), id: \.element.id) { idx, item in
+                        emojiCell(item, selected: idx == model.selected)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                model.selected = idx
+                                model.execute(item)
+                            }
+                            .help(item.title)
+                    }
+                }
+                .padding(8)
+            }
+            .onChange(of: model.selectedItem?.id) { _, id in
+                if let id { proxy.scrollTo(id) }
+            }
+        }
+    }
+
+    private func emojiCell(_ item: ResultItem, selected: Bool) -> some View {
+        Group {
+            if case .emoji(let e) = item.icon { Text(e).font(.system(size: 32)) } else { IconView(icon: item.icon) }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 58)
+        .background(selected ? Color.accentColor.opacity(0.3) : Color.clear, in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func row(_ item: ResultItem, selected: Bool) -> some View {
@@ -205,7 +239,10 @@ struct LauncherView: View {
             if let item = model.selectedItem, case .script(let s) = item.action, s.argument1 != nil {
                 return "↩ / ⇥ 引数を入れる　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
             }
-            if model.mode == .emoji { return "↩ 貼り付け　↑↓ 選ぶ　⎋ 閉じる" }
+            if model.mode == .emoji {
+                let name = model.selectedItem.map { [$0.title, $0.subtitle].filter { !$0.isEmpty }.joined(separator: " — ") + "　" } ?? ""
+                return name + "↩ 貼り付け　↑↓←→ 選ぶ　⎋ 閉じる"
+            }
             return "↩ 実行　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
         }
     }

@@ -153,6 +153,21 @@ final class LauncherModel: ObservableObject {
         launcherLog.info("move \(delta): selected = \(self.selected) / \(self.items.count)")
     }
 
+    /// 絵文字の格子の 1 行の数（LauncherView の emojiGrid と合わせる）
+    static let emojiColumns = 10
+
+    /// 絵文字の格子での移動。←→ は 1 つ、↑↓ は 1 行。端では止める（↓ で最後の行に足りなければ末尾へ）
+    func moveInGrid(dx: Int, dy: Int) {
+        guard !items.isEmpty else { return }
+        let cols = Self.emojiColumns
+        var next = selected + dx + dy * cols
+        if dy > 0 && next >= items.count {
+            // 下に行が無ければ動かさない。最後の行が短いときは末尾へ
+            next = selected / cols == (items.count - 1) / cols ? selected : items.count - 1
+        }
+        selected = min(max(next, 0), items.count - 1)
+    }
+
     var selectedItem: ResultItem? { items.indices.contains(selected) ? items[selected] : nil }
 
     /// ⌘⌫: 選択中の項目を検索結果から除外する。対象はアプリ・ブックマーク・スクリプト・スニペットだけ

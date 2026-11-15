@@ -139,6 +139,24 @@ final class LauncherTests: XCTestCase {
         XCTAssertFalse(model.items.contains { $0.kind == "絵文字" })
     }
 
+    func testMoveInEmojiGrid() {
+        let emojis = (0..<25).map { EmojiEntry(emoji: String(UnicodeScalar(0x1F600 + $0)!), nameJa: "顔\($0)", nameEn: "face \($0)") }
+        let model = LauncherModel(catalog: Catalog(apps: [], emojis: emojis), usage: UsageStore(fileURL: nil),
+                                  clipboard: ClipboardStore(directory: tempDir))
+        model.reset(to: .emoji)
+        XCTAssertEqual(LauncherModel.emojiColumns, 10)
+        model.moveInGrid(dx: -1, dy: 0); XCTAssertEqual(model.selected, 0)    // 左端で止まる
+        model.moveInGrid(dx: 0, dy: -1); XCTAssertEqual(model.selected, 0)    // 上端で止まる
+        model.moveInGrid(dx: 3, dy: 0); XCTAssertEqual(model.selected, 3)
+        model.moveInGrid(dx: 0, dy: 1); XCTAssertEqual(model.selected, 13)    // 1 行下
+        model.moveInGrid(dx: 0, dy: 1); XCTAssertEqual(model.selected, 23)
+        model.moveInGrid(dx: 0, dy: 1); XCTAssertEqual(model.selected, 23)    // 最後の行では止まる
+        model.selected = 17
+        model.moveInGrid(dx: 0, dy: 1); XCTAssertEqual(model.selected, 24)    // 下が足りなければ末尾へ
+        model.moveInGrid(dx: 1, dy: 0); XCTAssertEqual(model.selected, 24)
+        model.moveInGrid(dx: 0, dy: -1); XCTAssertEqual(model.selected, 14)
+    }
+
     // MARK: - 描画
 
     private func render(_ view: NSView) -> Data {

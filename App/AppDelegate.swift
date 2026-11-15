@@ -227,6 +227,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.openSettings()
                 return nil
             }
+            if self.model.mode == .emoji {
+                // 絵文字は格子なので、←→ も選択の移動に使う（検索欄のカーソルは動かさない）
+                switch (event.keyCode, mods.isEmpty) {
+                case (123, true): self.model.moveInGrid(dx: -1, dy: 0); return nil
+                case (124, true): self.model.moveInGrid(dx: 1, dy: 0); return nil
+                case (126, true): self.model.moveInGrid(dx: 0, dy: -1); return nil
+                case (125, true): self.model.moveInGrid(dx: 0, dy: 1); return nil
+                default: break
+                }
+            }
             var delta = 0
             switch event.keyCode {
             case 126 where mods.isEmpty: delta = -1
