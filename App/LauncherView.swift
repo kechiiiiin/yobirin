@@ -205,6 +205,7 @@ struct LauncherView: View {
             if let item = model.selectedItem, case .script(let s) = item.action, s.argument1 != nil {
                 return "↩ / ⇥ 引数を入れる　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
             }
+            if model.mode == .emoji { return "↩ 貼り付け　↑↓ 選ぶ　⎋ 閉じる" }
             return "↩ 実行　↑↓ 選ぶ　⌘⌫ 除外　⌘, 設定　⎋ 閉じる"
         }
     }

@@ -38,13 +38,14 @@ public struct Hotkey: Codable, Equatable {
 }
 
 public enum HotkeyAction: String, CaseIterable, Codable {
-    case launcher, snippets, clipboard, windowLeft, windowRight, windowMaximize
+    case launcher, snippets, clipboard, emoji, windowLeft, windowRight, windowMaximize
 
     public var label: String {
         switch self {
         case .launcher: return "呼鈴を開く"
         case .snippets: return "スニペット一覧"
         case .clipboard: return "クリップボード履歴"
+        case .emoji: return "絵文字"
         case .windowLeft: return "左半分"
         case .windowRight: return "右半分"
         case .windowMaximize: return "最大化"

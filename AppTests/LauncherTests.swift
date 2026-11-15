@@ -115,6 +115,30 @@ final class LauncherTests: XCTestCase {
         XCTAssertEqual(ids.filter { $0 == "snippet:同じ名前" }.count, 1)
     }
 
+    func testEmojiModeSearchesAndListsUsedFirst() {
+        let emojis = [EmojiEntry(emoji: "😀", nameJa: "にっこり笑う", nameEn: "grinning face"),
+                      EmojiEntry(emoji: "🐈‍⬛", nameJa: "黒猫", nameEn: "black cat", reading: "くろねこ"),
+                      EmojiEntry(emoji: "👍", nameJa: "いいね", nameEn: "thumbs up")]
+        let usage = UsageStore(fileURL: nil)
+        usage.record("emoji:👍")
+        let model = LauncherModel(catalog: Catalog(apps: [app("Cat App")], emojis: emojis), usage: usage,
+                                  clipboard: ClipboardStore(directory: tempDir))
+        model.reset(to: .emoji)
+        XCTAssertEqual(model.items.map(\.id), ["emoji:👍", "emoji:😀", "emoji:🐈‍⬛"])
+        model.query = "ねこ"
+        XCTAssertEqual(model.items.map(\.id), ["emoji:🐈‍⬛"])
+        model.query = "cat"
+        XCTAssertEqual(model.items.first?.title, "黒猫")
+        XCTAssertFalse(model.items.contains { $0.kind == "アプリ" })   // 絵文字モードではアプリを出さない
+        XCTAssertFalse(model.excludeSelected())
+        // 最初の検索欄には絵文字を混ぜない。「絵文字を探す」から入る
+        model.reset(to: .all)
+        model.query = "絵文字"
+        XCTAssertEqual(model.items.first?.id, "builtin:emojiPicker")
+        model.query = "cat"
+        XCTAssertFalse(model.items.contains { $0.kind == "絵文字" })
+    }
+
     // MARK: - 描画
 
     private func render(_ view: NSView) -> Data {

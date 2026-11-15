@@ -10,6 +10,7 @@ enum LauncherMode: Equatable {
     case all
     case snippets
     case clipboard
+    case emoji
     case argument(ScriptCommand)
     case output(String)
 }
@@ -54,6 +55,7 @@ final class LauncherModel: ObservableObject {
         case .all: return "呼鈴で探す"
         case .snippets: return "スニペットを探す"
         case .clipboard: return "クリップボード履歴を探す"
+        case .emoji: return "絵文字を探す（日本語・英語の名前）"
         case .argument(let s): return s.argument1?.placeholder.isEmpty == false ? s.argument1!.placeholder : "引数"
         case .output: return ""
         }
@@ -64,6 +66,7 @@ final class LauncherModel: ObservableObject {
         case .all: return nil
         case .snippets: return "スニペット"
         case .clipboard: return "クリップボード履歴"
+        case .emoji: return "絵文字"
         case .argument(let s): return s.title
         case .output(let title): return title
         }
@@ -101,6 +104,17 @@ final class LauncherModel: ObservableObject {
                 return FuzzyMatcher.score(query: q, candidate: t) != nil
             }
             items = entries.prefix(300).map(clipboardItem)
+        case .emoji:
+            let all = catalog.emojiItems()
+            if query.trimmingCharacters(in: .whitespaces).isEmpty {
+                // 空欄: 使ったことがあるものを先に、残りは一覧の順
+                let used = Ranker.rank(all.map { RankCandidate(id: $0.id, texts: []) }, query: "", usage: usage.records, now: now, limit: 40)
+                let usedSet = Set(used)
+                items = used.map { all[$0] } + all.indices.filter { !usedSet.contains($0) }.map { all[$0] }
+            } else {
+                let idx = Ranker.rank(all.map { RankCandidate(id: $0.id, texts: $0.searchTexts) }, query: query, usage: usage.records, now: now, limit: 200)
+                items = idx.map { all[$0] }
+            }
         case .argument, .output:
             items = []
         }
@@ -216,6 +230,10 @@ final class LauncherModel: ObservableObject {
             usage.record(item.id)
             onClose()
             Paster.pasteText(text)
+        case .emoji(let e):
+            usage.record(item.id)
+            onClose()
+            Paster.pasteText(e)
         case .clipboard(let e):
             onClose()
             switch e.kind {

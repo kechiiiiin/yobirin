@@ -80,6 +80,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         model = LauncherModel(catalog: catalog, usage: usage, clipboard: clipboardStore)
         model.onClose = { [weak self] in self?.hidePanel() }
         model.onBuiltin = { [weak self] b in self?.runBuiltin(b) }
+        catalog.onEmojiLoaded = { [weak self] in
+            guard let self, self.model.mode == .emoji else { return }
+            self.model.refilter()
+        }
         model.excluded = Set(config.excluded)
         model.onExclude = { [weak self] item in
             guard let self else { return }
@@ -146,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .launcher: togglePanel(.all)
         case .snippets: togglePanel(.snippets)
         case .clipboard: togglePanel(.clipboard)
+        case .emoji: togglePanel(.emoji)
         case .windowLeft: WindowManager.apply(.left)
         case .windowRight: WindowManager.apply(.right)
         case .windowMaximize: WindowManager.apply(.maximize)
@@ -269,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .quit: quit()
         case .clipboardHistory: showPanel(.clipboard)
         case .snippetList: showPanel(.snippets)
+        case .emojiPicker: showPanel(.emoji)
         case .windowLeft: WindowManager.apply(.left)
         case .windowRight: WindowManager.apply(.right)
         case .windowMaximize: WindowManager.apply(.maximize)

@@ -438,3 +438,41 @@ final class SystemSettingsParserTests: XCTestCase {
         if case .prefPane(let path) = panes[1].source { XCTAssertTrue(path.hasSuffix("/PP/Third.prefPane")) } else { XCTFail() }
     }
 }
+
+final class EmojiDataTests: XCTestCase {
+    func testLoadsJapaneseAndEnglishNamesFromStrings() throws {
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("yobirin-emoji-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: root) }
+        for (lang, dict) in [("ja", ["🐈‍⬛": "黒猫", "😀": "にっこり笑う", "#️⃣": "番号記号", "🇹🇼@CH-SKU": "地域向けの別名"]),
+                             ("en", ["🐈‍⬛": "black cat", "😀": "grinning face", "#️⃣": "number sign"])] {
+            let dir = root.appendingPathComponent("\(lang).lproj")
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let data = try PropertyListSerialization.data(fromPropertyList: dict, format: .binary, options: 0)
+            try data.write(to: dir.appendingPathComponent("AppleName.strings"))
+        }
+        let all = EmojiData.load(resources: root)
+        XCTAssertEqual(all.map(\.emoji), ["😀", "🐈‍⬛", "#️⃣"])   // Unicode の推奨の並び（顔 → 動物 → 記号）
+        // 並び順に無いものは後ろに文字コード順。U+FE0F の有無は区別しない
+        let custom = EmojiData.load(resources: root, order: ["#\u{20E3}", "🐈‍⬛"])
+        XCTAssertEqual(custom.map(\.emoji), ["#️⃣", "🐈‍⬛", "😀"])
+        let cat = try XCTUnwrap(all.first { $0.emoji == "🐈‍⬛" })
+        XCTAssertEqual(cat.nameEn, "black cat")
+        XCTAssertEqual(cat.reading, "くろねこ")
+        XCTAssertEqual(cat.id, "emoji:🐈‍⬛")
+        XCTAssertNotNil(FuzzyMatcher.bestScore(query: "ねこ", candidates: cat.searchTexts))
+        XCTAssertNotNil(FuzzyMatcher.bestScore(query: "cat", candidates: cat.searchTexts))
+    }
+
+    func testDefaultOrderStartsWithFacesAndEndsWithFlags() {
+        let order = EmojiData.defaultOrder
+        XCTAssertGreaterThan(order.count, 1800)
+        XCTAssertEqual(order.first, "😀")
+        XCTAssertTrue(order.last?.unicodeScalars.first.map { (0x1F1E6...0x1F3F4).contains($0.value) } ?? false)
+        XCTAssertFalse(order.contains { $0.unicodeScalars.contains { (0x1F3FB...0x1F3FF).contains($0.value) } })
+    }
+
+    func testMissingFolderGivesEmptyList() {
+        XCTAssertTrue(EmojiData.load(resources: URL(fileURLWithPath: "/nonexistent/yobirin")).isEmpty)
+    }
+}

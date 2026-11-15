@@ -25,7 +25,7 @@ macOS の自作ランチャー。Raycast の置き換え。メニューバー常
 - **スクリプト**: スクリプトフォルダ（既定 `~/.config/yobirin/scripts/`・無ければ作ります）にある実行可能ファイル。Raycast のスクリプトコマンド書式のヘッダを読みます
 - **スニペット**: `~/.config/yobirin/snippets.json`
 - **システム設定の項目**: 「ディスプレイ」「display」「サウンド」「wifi」などで該当の画面が出て、Enter でその画面を開きます。この Mac の `/System/Library/ExtensionKit/Extensions/*.appex` のうち `EXExtensionPointIdentifier` が `com.apple.Settings.extension.ui` のもの（約 50 件）を、日本語名・英語名（`InfoPlist.loctable` と Info.plist）で当てます。`x-apple.systempreferences:<bundle id>` を開きます。`~/Library/PreferencePanes`・`/Library/PreferencePanes` のサードパーティの prefPane も拾い、システム設定に渡して開きます。起動時と「呼鈴を再読込」で読み直します。id は `settings:<bundle id>`（⌘⌫ で除外可）
-- **組み込みコマンド**: 呼鈴の設定・呼鈴を再読込・呼鈴を終了・クリップボード履歴・スニペット一覧・左半分・右半分・最大化
+- **組み込みコマンド**: 呼鈴の設定・呼鈴を再読込・呼鈴を終了・クリップボード履歴・スニペット一覧・絵文字を探す・左半分・右半分・最大化
 
 ### 検索結果から除外
 
@@ -65,6 +65,15 @@ echo "こんにちは、$1"
 
 選ぶと元のアプリに貼ります（クリップボードに入れて ⌘V を送り、元のクリップボードの中身は戻します）。スニペット専用のキーは設定で登録します（既定なし）。打つと勝手に展開される仕組みはありません。
 
+### 絵文字
+
+検索欄の「絵文字を探す」（`emoji`・`えもじ` でも出ます）か、専用キー（設定で登録・既定なし）で絵文字の一覧を開き、選ぶと元のアプリに貼ります（スニペットと同じ貼り方）。
+
+- 名前は macOS の絵文字ピッカーと同じもの（`/System/Library/PrivateFrameworks/CoreEmoji.framework/Versions/A/Resources/{ja,en}.lproj/AppleName.strings`、約 1,900 件）。日本語名・英語名・日本語名の読み（「黒猫」なら「くろねこ」）で当てます
+- 空欄のときは、使ったことがあるものを先に、残りを Unicode の推奨の並び（顔 → 人・手 → 動物・自然 → 食べ物 → 旅行 → 活動 → 物 → 記号 → 旗。絵文字キーボードとほぼ同じ）で出します。並びは `Core/EmojiOrder.swift` で、unicode.org の `emoji-test.txt` から `tools/gen-emoji-order.py` で作ります（いまは Emoji 18.0）。並びに無いものは後ろに文字コード順
+- 肌の色の違いは出ません。最初の検索欄には絵文字を混ぜません
+- 非公開フレームワークのファイルなので、macOS の更新で場所が変わったら一覧が空になります（起動時に裏で 1 度だけ読みます。「呼鈴を再読込」では読み直しません）
+
 ### クリップボード履歴
 
 - 0.5 秒ごとに見て、文字と画像を `~/Library/Application Support/yobirin/clipboard/` に残します（メタは `history.json`、画像は `images/`）
@@ -91,7 +100,7 @@ echo "こんにちは、$1"
 }
 ```
 
-`hotkeys` のキーは `launcher`・`snippets`・`clipboard`・`windowLeft`・`windowRight`・`windowMaximize`。`modifiers` は Carbon の値の和（⌘=256・⇧=512・⌥=2048・⌃=4096）。設定画面では欄を押してからキーを押せば登録できます。
+`hotkeys` のキーは `launcher`・`snippets`・`clipboard`・`emoji`・`windowLeft`・`windowRight`・`windowMaximize`。`modifiers` は Carbon の値の和（⌘=256・⇧=512・⌥=2048・⌃=4096）。設定画面では欄を押してからキーを押せば登録できます。
 
 1 つの操作に別のキーも足したいときは `extraHotkeys` に書きます（設定画面には出ません。`hotkeys` のキーと重複するものは無視します）。
 
@@ -130,6 +139,6 @@ make clean
 
 ## 構成
 
-- `Core/`（YobirinCore.framework）: 画面に依存しないロジック。あいまい一致と並び順・Raycast ヘッダのパース・ウィンドウ枠の計算・ブックマーク JSON・システム設定の項目の読み取り・クリップボード履歴の保存・設定
+- `Core/`（YobirinCore.framework）: 画面に依存しないロジック。あいまい一致と並び順・Raycast ヘッダのパース・ウィンドウ枠の計算・ブックマーク JSON・システム設定の項目の読み取り・絵文字の名前の読み取り・クリップボード履歴の保存・設定
 - `App/`: メニューバー・パネル（SwiftUI＋AppKit）・Carbon ホットキー・入力ソース切り替え・アクセシビリティ・貼り付け・設定画面
 - `Tests/`: YobirinCore の XCTest

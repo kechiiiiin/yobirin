@@ -9,7 +9,7 @@ enum ItemIcon {
 }
 
 enum Builtin: String, CaseIterable {
-    case settings, reload, quit, clipboardHistory, snippetList, windowLeft, windowRight, windowMaximize
+    case settings, reload, quit, clipboardHistory, snippetList, emojiPicker, windowLeft, windowRight, windowMaximize
 
     var title: String {
         switch self {
@@ -18,6 +18,7 @@ enum Builtin: String, CaseIterable {
         case .quit: return "呼鈴を終了"
         case .clipboardHistory: return "クリップボード履歴"
         case .snippetList: return "スニペット一覧"
+        case .emojiPicker: return "絵文字を探す"
         case .windowLeft: return "左半分"
         case .windowRight: return "右半分"
         case .windowMaximize: return "最大化"
@@ -31,6 +32,7 @@ enum Builtin: String, CaseIterable {
         case .quit: return ["yobirin quit"]
         case .clipboardHistory: return ["clipboard history"]
         case .snippetList: return ["snippets"]
+        case .emojiPicker: return ["emoji", "えもじ", "symbols"]
         case .windowLeft: return ["left half", "window left"]
         case .windowRight: return ["right half", "window right"]
         case .windowMaximize: return ["maximize", "window maximize"]
@@ -44,6 +46,7 @@ enum Builtin: String, CaseIterable {
         case .quit: return "power"
         case .clipboardHistory: return "doc.on.clipboard"
         case .snippetList: return "text.quote"
+        case .emojiPicker: return "face.smiling"
         case .windowLeft: return "rectangle.lefthalf.filled"
         case .windowRight: return "rectangle.righthalf.filled"
         case .windowMaximize: return "rectangle.fill"
@@ -56,6 +59,7 @@ enum ItemAction {
     case openBookmark(String)
     case script(ScriptCommand)
     case snippet(String)
+    case emoji(String)
     case clipboard(ClipboardEntry)
     case builtin(Builtin)
     case openSettings(SettingsPane)
@@ -97,9 +101,41 @@ final class Catalog {
     init() {}
 
     /// テスト用: 探す対象を差し込む（ファイルやアプリフォルダは読まない）
-    init(apps: [AppEntry], snippets: [Snippet] = []) {
+    init(apps: [AppEntry], snippets: [Snippet] = [], emojis: [EmojiEntry] = []) {
         self.apps = apps
         self.snippets = snippets
+        self.emojis = emojis
+        emojiLoaded = true
+    }
+
+    // MARK: - 絵文字
+
+    /// 絵文字の一覧。読むのに 0.3 秒ほどかかるので、裏で 1 度だけ読む
+    private(set) var emojis: [EmojiEntry] = []
+    private var emojiLoaded = false
+    private var loadingEmoji = false
+    /// 読み終えたとき（絵文字モードを開いていたら並べ直すため）
+    var onEmojiLoaded: () -> Void = {}
+
+    func loadEmojisIfNeeded() {
+        guard !emojiLoaded, !loadingEmoji else { return }
+        loadingEmoji = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            let found = EmojiData.load()
+            DispatchQueue.main.async {
+                self.emojis = found
+                self.emojiLoaded = true
+                self.loadingEmoji = false
+                self.onEmojiLoaded()
+            }
+        }
+    }
+
+    func emojiItems() -> [ResultItem] {
+        emojis.map { e in
+            ResultItem(id: e.id, title: e.nameJa.isEmpty ? e.nameEn : e.nameJa, subtitle: e.nameJa.isEmpty ? "" : e.nameEn,
+                       kind: "絵文字", icon: .emoji(e.emoji), action: .emoji(e.emoji), searchTexts: e.searchTexts)
+        }
     }
 
     static let systemSettingsAppPath = "/System/Applications/System Settings.app"
@@ -129,6 +165,7 @@ final class Catalog {
         scripts = RaycastScriptParser.scan(folder: scriptsFolder)
         scanApps()
         if force || !settingsLoaded { scanSettings() }
+        loadEmojisIfNeeded()
     }
 
     /// スニペットだけ読み直す（設定画面で保存した直後など）
