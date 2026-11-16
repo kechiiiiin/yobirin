@@ -120,8 +120,26 @@ enum WindowManager {
         guard let screen else { return }
         let visible = WindowCycler.cocoaToAX(screen.visibleFrame, primaryScreenHeight: primaryHeight)
         let target = cycler.next(direction: direction, current: current, visible: visible)
+        // AXEnhancedUserInterface が有効なアプリ（Chrome・Electron・Finder など）は位置の変更をアニメーションで行い、
+        // その間に入れた大きさが捨てられて「大きさはそのまま位置だけ動く」ことがある。動かす間だけ切る。
+        let enhanced = enhancedUserInterface(axApp)
+        if enhanced { setEnhancedUserInterface(axApp, false) }
         setFrame(win, target)
+        if enhanced { setEnhancedUserInterface(axApp, true) }
         if let actual = frame(of: win) { cycler.noteActualFrame(actual) }
+    }
+
+    private static let enhancedUIAttribute = "AXEnhancedUserInterface" as CFString
+
+    private static func enhancedUserInterface(_ axApp: AXUIElement) -> Bool {
+        var v: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(axApp, enhancedUIAttribute, &v) == .success,
+              let b = v as? Bool else { return false }
+        return b
+    }
+
+    private static func setEnhancedUserInterface(_ axApp: AXUIElement, _ on: Bool) {
+        AXUIElementSetAttributeValue(axApp, enhancedUIAttribute, on as CFBoolean)
     }
 
     private static func area(_ r: CGRect) -> CGFloat { r.isNull ? 0 : r.width * r.height }
