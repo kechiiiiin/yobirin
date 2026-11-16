@@ -49,6 +49,16 @@ final class LauncherTests: XCTestCase {
         XCTAssertEqual(model.selected, 0)
     }
 
+    func testExpressionShowsCalculationFirst() {
+        let model = makeModel()
+        model.query = "12*3"
+        XCTAssertEqual(model.items.first?.title, "= 36")
+        if case .copyText(let t)? = model.items.first?.action { XCTAssertEqual(t, "36") } else { XCTFail("コピーの動作でない") }
+        model.query = "cla"
+        XCTAssertNotEqual(model.items.first?.id, "calc")
+        XCTAssertFalse(model.excludeSelected() && model.items.first?.id == "calc")
+    }
+
     func testRefilterDropsExcluded() {
         let model = makeModel()
         model.query = "cl"

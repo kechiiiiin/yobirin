@@ -476,3 +476,47 @@ final class EmojiDataTests: XCTestCase {
         XCTAssertTrue(EmojiData.load(resources: URL(fileURLWithPath: "/nonexistent/yobirin")).isEmpty)
     }
 }
+
+final class CalculatorTests: XCTestCase {
+    private func calc(_ s: String) -> String? { Calculator.evaluate(s)?.plain }
+
+    func testBasicArithmeticAndPrecedence() {
+        XCTAssertEqual(calc("1+2*3"), "7")
+        XCTAssertEqual(calc("(1+2)*3"), "9")
+        XCTAssertEqual(calc("10/4"), "2.5")
+        XCTAssertEqual(calc("2^10"), "1024")
+        XCTAssertEqual(calc("2**3"), "8")
+        XCTAssertEqual(calc("2^3^2"), "512")      // 右結合
+        XCTAssertEqual(calc("-2^2"), "-4")
+        XCTAssertEqual(calc("3 - -2"), "5")
+        XCTAssertEqual(calc("0.1+0.2"), "0.3")
+    }
+
+    func testPercentFunctionsAndConstants() {
+        XCTAssertEqual(calc("1000*8%"), "80")
+        XCTAssertEqual(calc("sqrt(16)+1"), "5")
+        XCTAssertEqual(calc("sqrt(2)"), "1.4142135624")
+        XCTAssertEqual(calc("log(1000)"), "3")
+        XCTAssertEqual(calc("2*pi"), "6.2831853072")
+        XCTAssertEqual(calc("round(2.5)"), "3")
+    }
+
+    func testFullWidthAndSeparators() {
+        XCTAssertEqual(calc("１２×３"), "36")
+        XCTAssertEqual(calc("１００÷８"), "12.5")
+        XCTAssertEqual(calc("1,000*3"), "3000")
+        XCTAssertEqual(Calculator.evaluate("1234*1000")?.display, "1,234,000")
+    }
+
+    func testNotAnExpression() {
+        XCTAssertNil(calc("123"))
+        XCTAssertNil(calc("pi"))
+        XCTAssertNil(calc("chrome"))
+        XCTAssertNil(calc("1+"))
+        XCTAssertNil(calc("(1+2"))
+        XCTAssertNil(calc("1/0"))
+        XCTAssertNil(calc("foo(2)+1"))
+        XCTAssertNil(calc(""))
+        XCTAssertNil(calc("c++"))
+    }
+}

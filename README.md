@@ -25,6 +25,7 @@ macOS の自作ランチャー。Raycast の置き換え。メニューバー常
 - **スクリプト**: スクリプトフォルダ（既定 `~/.config/yobirin/scripts/`・無ければ作ります）にある実行可能ファイル。Raycast のスクリプトコマンド書式のヘッダを読みます
 - **スニペット**: `~/.config/yobirin/snippets.json`
 - **システム設定の項目**: 「ディスプレイ」「display」「サウンド」「wifi」などで該当の画面が出て、Enter でその画面を開きます。この Mac の `/System/Library/ExtensionKit/Extensions/*.appex` のうち `EXExtensionPointIdentifier` が `com.apple.Settings.extension.ui` のもの（約 50 件）を、日本語名・英語名（`InfoPlist.loctable` と Info.plist）で当てます。`x-apple.systempreferences:<bundle id>` を開きます。`~/Library/PreferencePanes`・`/Library/PreferencePanes` のサードパーティの prefPane も拾い、システム設定に渡して開きます。起動時と「呼鈴を再読込」で読み直します。id は `settings:<bundle id>`（⌘⌫ で除外可）
+- **計算**: 式を打つと先頭に「= 答え」が出て、Enter で答え（カンマなし）をコピーします。`+ - * / ^`（`**` も可）・括弧・後置の `%`（÷100。`1000*8%` → 80）・`sqrt abs round floor ceil ln log sin cos tan`・`pi e` が使えます。全角の数字や `×` `÷`、`1,000` のような区切りも読みます。数だけ（`123`）や 0 での割り算では出ません
 - **組み込みコマンド**: 呼鈴の設定・呼鈴を再読込・呼鈴を終了・クリップボード履歴・スニペット一覧・絵文字を探す・左半分・右半分・最大化
 
 ### 検索結果から除外

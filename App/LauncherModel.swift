@@ -88,6 +88,11 @@ final class LauncherModel: ObservableObject {
             let all = catalog.allItems().filter { !excluded.contains($0.id) }
             let idx = Ranker.rank(all.map { RankCandidate(id: $0.id, texts: $0.searchTexts) }, query: query, usage: usage.records, now: now)
             items = idx.map { all[$0] }
+            // 式なら計算結果を先頭に出す（Enter でコピー）
+            if let r = Calculator.evaluate(query) {
+                items.insert(ResultItem(id: "calc", title: "= " + r.display, subtitle: query.trimmingCharacters(in: .whitespaces),
+                                        kind: "計算", icon: .symbol("equal.square"), action: .copyText(r.plain), searchTexts: []), at: 0)
+            }
         case .snippets:
             let all = catalog.snippetItems().filter { !excluded.contains($0.id) }
             if query.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -180,7 +185,7 @@ final class LauncherModel: ObservableObject {
         }
         guard let item = selectedItem else { return false }
         switch item.action {
-        case .builtin, .clipboard: return false
+        case .builtin, .clipboard, .copyText: return false
         default: break
         }
         excluded.insert(item.id)
@@ -259,6 +264,11 @@ final class LauncherModel: ObservableObject {
                     Paster.pasteImage(data: data, type: e.imageType ?? "png")
                 }
             }
+        case .copyText(let text):
+            onClose()
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            HUD.show("コピーしました: \(text)")
         case .builtin(let b):
             usage.record(item.id)
             switch b {

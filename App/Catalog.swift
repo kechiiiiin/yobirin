@@ -63,6 +63,8 @@ enum ItemAction {
     case clipboard(ClipboardEntry)
     case builtin(Builtin)
     case openSettings(SettingsPane)
+    /// 計算結果などの文字をクリップボードへ写す
+    case copyText(String)
 }
 
 struct ResultItem: Identifiable {
