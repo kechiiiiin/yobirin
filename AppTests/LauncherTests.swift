@@ -221,4 +221,19 @@ final class LauncherTests: XCTestCase {
             w3.orderOut(nil)
         }
     }
+
+    /// 組み込みコマンド「フィールド」は、開いている間「フィールドを閉じる」として出る
+    func testFieldBuiltinTitleFollowsState() {
+        let saved = Builtin.fieldIsOpen
+        defer { Builtin.fieldIsOpen = saved }
+        let model = makeModel()
+        Builtin.fieldIsOpen = { false }
+        model.query = "フィールド"
+        XCTAssertEqual(model.items.first?.id, "builtin:field")
+        XCTAssertEqual(model.items.first?.title, "フィールド")
+        Builtin.fieldIsOpen = { true }
+        model.query = "フィールドを閉じる"
+        XCTAssertEqual(model.items.first?.id, "builtin:field")
+        XCTAssertEqual(model.items.first?.title, "フィールドを閉じる")
+    }
 }

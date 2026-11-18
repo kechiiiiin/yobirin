@@ -9,7 +9,10 @@ enum ItemIcon {
 }
 
 enum Builtin: String, CaseIterable {
-    case settings, reload, quit, clipboardHistory, snippetList, emojiPicker, windowLeft, windowRight, windowMaximize
+    case settings, reload, quit, clipboardHistory, snippetList, emojiPicker, windowLeft, windowRight, windowMaximize, field
+
+    /// フィールドを開いているか（「フィールド」⇔「フィールドを閉じる」の出し分け）。AppDelegate が差し込む
+    static var fieldIsOpen: () -> Bool = { false }
 
     var title: String {
         switch self {
@@ -22,6 +25,7 @@ enum Builtin: String, CaseIterable {
         case .windowLeft: return "左半分"
         case .windowRight: return "右半分"
         case .windowMaximize: return "最大化"
+        case .field: return Builtin.fieldIsOpen() ? "フィールドを閉じる" : "フィールド"
         }
     }
 
@@ -36,6 +40,7 @@ enum Builtin: String, CaseIterable {
         case .windowLeft: return ["left half", "window left"]
         case .windowRight: return ["right half", "window right"]
         case .windowMaximize: return ["maximize", "window maximize"]
+        case .field: return ["field", "ふぃーるど"]
         }
     }
 
@@ -50,6 +55,7 @@ enum Builtin: String, CaseIterable {
         case .windowLeft: return "rectangle.lefthalf.filled"
         case .windowRight: return "rectangle.righthalf.filled"
         case .windowMaximize: return "rectangle.fill"
+        case .field: return "rectangle.dashed"
         }
     }
 }

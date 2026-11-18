@@ -6,6 +6,8 @@ final class HotkeyManager {
     static let shared = HotkeyManager()
 
     private var refs: [EventHotKeyRef] = []
+    /// フィールドを開いている間だけの ⌘1〜⌘9。設定の読み直し（unregisterAll）では外さない
+    private var fieldRefs: [(ref: EventHotKeyRef, id: UInt32)] = []
     private var handlers: [UInt32: () -> Void] = [:]
     private var nextID: UInt32 = 1
     private var installed = false
@@ -44,10 +46,37 @@ final class HotkeyManager {
         }
     }
 
+    /// フィールド用のキーを登録する（失敗しても failures には入れない）。登録できたら true
+    @discardableResult
+    func registerField(_ key: Hotkey, handler: @escaping () -> Void) -> Bool {
+        installHandlerIfNeeded()
+        let id = nextID
+        nextID += 1
+        var ref: EventHotKeyRef?
+        let hkID = EventHotKeyID(signature: OSType(0x5942_524E), id: id)
+        let status = RegisterEventHotKey(key.keyCode, key.modifiers, hkID, GetApplicationEventTarget(), 0, &ref)
+        guard status == noErr, let ref else {
+            NSLog("呼鈴: フィールドのキーを登録できませんでした keyCode=\(key.keyCode) status=\(status)")
+            return false
+        }
+        fieldRefs.append((ref, id))
+        handlers[id] = handler
+        return true
+    }
+
+    func unregisterField() {
+        for r in fieldRefs {
+            UnregisterEventHotKey(r.ref)
+            handlers[r.id] = nil
+        }
+        fieldRefs.removeAll()
+    }
+
     func unregisterAll() {
         for r in refs { UnregisterEventHotKey(r) }
         refs.removeAll()
-        handlers.removeAll()
+        let keep = Set(fieldRefs.map(\.id))
+        handlers = handlers.filter { keep.contains($0.key) }
         failures.removeAll()
     }
 }

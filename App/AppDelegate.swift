@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var settingsModel: SettingsModel?
     private var mouseMonitor: Any?
     private var keyMonitor: Any?
+    private let field = FieldController()
 
     /// テスト（YobirinAppTests）のホストとして起動されたとき。ホットキー・メニューバー・監視などは立ち上げない
     static var isRunningTests: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
@@ -34,6 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if Self.isRunningTests { return }
         prepareFiles()
+        Builtin.fieldIsOpen = { [weak self] in self?.field.isOpen ?? false }
         setUpStatusItem()
         setUpPanel()
         loadConfig()
@@ -288,6 +290,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .windowLeft: WindowManager.apply(.left)
         case .windowRight: WindowManager.apply(.right)
         case .windowMaximize: WindowManager.apply(.maximize)
+        case .field: field.toggle()
         }
     }
 
