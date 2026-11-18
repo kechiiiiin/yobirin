@@ -225,34 +225,36 @@ final class FieldController: NSObject, NSWindowDelegate {
         return out
     }
 
-    /// カーソルの下にある、他のアプリの普通のウィンドウ（手前から探す）
+    /// カーソルの下にある、他のアプリの普通のウィンドウ（手前から探す）。
+    /// Kindle（iPad 版）は窓の左上に 66×20 の小さな窓を重ねているので、そこを掴んでも本体の窓とみなす（FieldWindowPicker）
     static func windowUnder(_ point: CGPoint) -> (windowID: UInt32, pid: Int32, frame: CGRect)? {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
-        let me = ProcessInfo.processInfo.processIdentifier
-        for info in list {
-            guard let b = info[kCGWindowBounds as String] as? NSDictionary,
-                  let r = CGRect(dictionaryRepresentation: b), r.contains(point) else { continue }
-            let layer = info[kCGWindowLayer as String] as? Int ?? 0
-            // メニューバー・Dock など手前の特別な層が上にあるときは、ウィンドウを掴んでいない
-            guard layer == 0 else { return nil }
-            guard let id = info[kCGWindowNumber as String] as? UInt32,
-                  let pid = info[kCGWindowOwnerPID as String] as? Int32, pid != me else { return nil }
-            return (id, pid, r)
-        }
-        return nil
+        let windows = list.compactMap(FieldWindowInfo.init)
+        guard let w = FieldWindowPicker.pick(at: point, in: windows, excludingPID: ProcessInfo.processInfo.processIdentifier) else { return nil }
+        return (w.windowID, w.pid, w.bounds)
     }
 
+    /// CGWindowID に当たるアクセシビリティの窓。kAXWindows だけでなく AXFocusedWindow・AXMainWindow も候補にする:
+    /// iPad 版の Kindle は前面にいる間しか kAXWindows に窓を出さない（背面では空）が、AXFocusedWindow・AXMainWindow なら背面でも引ける
     static func axWindow(pid: Int32, windowID: UInt32, frame: CGRect) -> AXUIElement? {
         let axApp = AXUIElementCreateApplication(pid)
+        var wins: [AXUIElement] = []
         var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &ref) == .success,
-              let wins = ref as? [AXUIElement] else { return nil }
-        for w in wins {
-            var id: CGWindowID = 0
-            if _AXUIElementGetWindow(w, &id) == .success, id == windowID { return w }
+        if AXUIElementCopyAttributeValue(axApp, kAXWindowsAttribute as CFString, &ref) == .success, let list = ref as? [AXUIElement] {
+            wins = list
         }
-        // 引けないアプリは枠が一致するもので代える
-        return wins.first { w in axFrame(w).map { WindowCycler.approximatelyEqual($0, frame, tolerance: 2) } ?? false }
+        for attr in [kAXFocusedWindowAttribute, kAXMainWindowAttribute] {
+            var r: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(axApp, attr as CFString, &r) == .success, let r,
+                  CFGetTypeID(r) == AXUIElementGetTypeID() else { continue }
+            let w = r as! AXUIElement
+            if !wins.contains(where: { CFEqual($0, w) }) { wins.append(w) }
+        }
+        let candidates = wins.map { w -> AXWindowMatch.Candidate in
+            var id: CGWindowID = 0
+            return AXWindowMatch.Candidate(windowID: _AXUIElementGetWindow(w, &id) == .success ? id : nil, frame: axFrame(w))
+        }
+        return AXWindowMatch.select(candidates, windowID: windowID, frame: frame).map { wins[$0] }
     }
 
     static func axFrame(_ w: AXUIElement) -> CGRect? {

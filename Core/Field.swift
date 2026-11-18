@@ -212,3 +212,75 @@ public struct FieldFrame: Codable, Equatable {
         try JSONEncoder().encode(self).write(to: url, options: .atomic)
     }
 }
+
+/// CGWindowListCopyWindowInfo の 1 件（座標は左上原点）。AX から窓が引けないアプリ（iPad 版の Kindle など）も
+/// ここからなら見えるので、取り込み・番号付けはこれを土台にする
+public struct FieldWindowInfo: Equatable {
+    public let windowID: UInt32
+    public let pid: Int32
+    public let layer: Int
+    public let bounds: CGRect
+    public let name: String
+
+    public init(windowID: UInt32, pid: Int32, layer: Int = 0, bounds: CGRect, name: String = "") {
+        self.windowID = windowID
+        self.pid = pid
+        self.layer = layer
+        self.bounds = bounds
+        self.name = name
+    }
+
+    /// CGWindowListCopyWindowInfo の辞書から作る。足りない項目があれば nil
+    public init?(_ d: [String: Any]) {
+        guard let id = (d[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+              let pid = (d[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+              let b = d[kCGWindowBounds as String] as? NSDictionary,
+              let r = CGRect(dictionaryRepresentation: b) else { return nil }
+        self.init(windowID: id, pid: pid, layer: (d[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0,
+                  bounds: r, name: d[kCGWindowName as String] as? String ?? "")
+    }
+}
+
+public enum FieldWindowPicker {
+    /// これより小さい窓は、同じアプリの大きな窓に重ねた飾り（Kindle の信号ボタン部分の 66×20 など）とみなす
+    public static let minimumSize = CGSize(width: 120, height: 80)
+
+    /// カーソルの下で掴んだウィンドウを選ぶ。windows は手前から奥の順（CGWindowList の並び）。
+    /// - 手前で最初に当たったものが layer 0 でなければ（メニューバー・Dock など）掴んでいない
+    /// - 自分のウィンドウなら掴んでいない
+    /// - 当たったものが小さな重ね窓で、同じアプリの大きな窓がその点を含むなら、そちらを掴んだとみなす
+    public static func pick(at point: CGPoint, in windows: [FieldWindowInfo], excludingPID me: Int32) -> FieldWindowInfo? {
+        guard let hit = windows.first(where: { $0.bounds.contains(point) }), hit.layer == 0, hit.pid != me else { return nil }
+        guard isSmall(hit.bounds) else { return hit }
+        return windows.first { w in
+            w.pid == hit.pid && w.layer == 0 && !isSmall(w.bounds) && w.bounds.contains(point)
+        } ?? hit
+    }
+
+    static func isSmall(_ r: CGRect) -> Bool {
+        r.width < minimumSize.width || r.height < minimumSize.height
+    }
+}
+
+/// CGWindowID からアクセシビリティの窓を選ぶ。
+/// 候補は kAXWindows に加え AXFocusedWindow・AXMainWindow・AXChildren から集めたもの
+/// （iPad 版アプリは kAXWindows が空でも、こちらからは窓が引ける）
+public enum AXWindowMatch {
+    public struct Candidate: Equatable {
+        /// _AXUIElementGetWindow で引けた ID（引けなければ nil）
+        public let windowID: UInt32?
+        public let frame: CGRect?
+        public init(windowID: UInt32?, frame: CGRect?) {
+            self.windowID = windowID
+            self.frame = frame
+        }
+    }
+
+    /// ID が一致するものを優先し、無ければ枠が一致するもの（ID を引けないアプリ向け）。どれも違えば nil
+    public static func select(_ candidates: [Candidate], windowID: UInt32, frame: CGRect, tolerance: CGFloat = 2) -> Int? {
+        if let i = candidates.firstIndex(where: { $0.windowID == windowID }) { return i }
+        return candidates.firstIndex { c in
+            c.frame.map { WindowCycler.approximatelyEqual($0, frame, tolerance: tolerance) } ?? false
+        }
+    }
+}

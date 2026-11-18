@@ -135,3 +135,56 @@ final class FieldMiscTests: XCTestCase {
         XCTAssertEqual(FieldFrame.load(from: url), f)
     }
 }
+
+final class FieldWindowPickerTests: XCTestCase {
+    // 実測（2026-11-18）: Kindle は本体 82 の左上に 66×20 の窓を重ね、CGWindowList では本体より手前に来る
+    let overlay = FieldWindowInfo(windowID: 28672, pid: 674, bounds: CGRect(x: -1907, y: 421, width: 66, height: 20))
+    let kindle = FieldWindowInfo(windowID: 82, pid: 674, bounds: CGRect(x: -1919, y: 417, width: 1919, height: 1162))
+    let behind = FieldWindowInfo(windowID: 5, pid: 9, bounds: CGRect(x: -1920, y: 0, width: 1920, height: 1600))
+
+    func testOverlayResolvesToMainWindow() {
+        let w = FieldWindowPicker.pick(at: CGPoint(x: -1880, y: 430), in: [overlay, kindle, behind], excludingPID: 1)
+        XCTAssertEqual(w?.windowID, 82)
+    }
+
+    func testOrdinaryHitIsUnchanged() {
+        XCTAssertEqual(FieldWindowPicker.pick(at: CGPoint(x: -1000, y: 800), in: [overlay, kindle, behind], excludingPID: 1)?.windowID, 82)
+        XCTAssertEqual(FieldWindowPicker.pick(at: CGPoint(x: -1000, y: 100), in: [overlay, kindle, behind], excludingPID: 1)?.windowID, 5)
+        // 小さい窓しか無ければそのまま
+        XCTAssertEqual(FieldWindowPicker.pick(at: CGPoint(x: -1880, y: 430), in: [overlay], excludingPID: 1)?.windowID, 28672)
+        // 別アプリの大きな窓には寄せない
+        XCTAssertEqual(FieldWindowPicker.pick(at: CGPoint(x: -1880, y: 430), in: [overlay, behind], excludingPID: 1)?.windowID, 28672)
+    }
+
+    func testMenuBarAndOwnWindowsAreNotGrabbed() {
+        let menu = FieldWindowInfo(windowID: 1, pid: 50, layer: 24, bounds: CGRect(x: -1920, y: 400, width: 1920, height: 30))
+        XCTAssertNil(FieldWindowPicker.pick(at: CGPoint(x: -1000, y: 420), in: [menu, kindle], excludingPID: 1))
+        XCTAssertNil(FieldWindowPicker.pick(at: CGPoint(x: -1000, y: 800), in: [kindle], excludingPID: 674))
+        XCTAssertNil(FieldWindowPicker.pick(at: CGPoint(x: 5000, y: 5000), in: [kindle], excludingPID: 1))
+    }
+
+    func testInfoFromCGDictionary() {
+        let d: [String: Any] = [kCGWindowNumber as String: NSNumber(value: 82), kCGWindowOwnerPID as String: NSNumber(value: 674),
+                                kCGWindowLayer as String: NSNumber(value: 0),
+                                kCGWindowBounds as String: CGRect(x: 1, y: 2, width: 3, height: 4).dictionaryRepresentation]
+        XCTAssertEqual(FieldWindowInfo(d), FieldWindowInfo(windowID: 82, pid: 674, bounds: CGRect(x: 1, y: 2, width: 3, height: 4)))
+        XCTAssertNil(FieldWindowInfo([:]))
+    }
+}
+
+final class AXWindowMatchTests: XCTestCase {
+    let f = CGRect(x: 0, y: 0, width: 800, height: 600)
+
+    func testPrefersIDThenFrame() {
+        // 背面の Kindle: kAXWindows は空、AXFocusedWindow・AXMainWindow（同じ 82）だけが候補
+        let c = [AXWindowMatch.Candidate(windowID: 82, frame: f)]
+        XCTAssertEqual(AXWindowMatch.select(c, windowID: 82, frame: .zero), 0)
+        // ID が一致するものが枠一致より優先
+        let c2 = [AXWindowMatch.Candidate(windowID: nil, frame: f), AXWindowMatch.Candidate(windowID: 7, frame: .zero)]
+        XCTAssertEqual(AXWindowMatch.select(c2, windowID: 7, frame: f), 1)
+        // ID が引けないアプリは枠で代える（2pt まで）
+        XCTAssertEqual(AXWindowMatch.select(c2, windowID: 99, frame: f.offsetBy(dx: 2, dy: 0)), 0)
+        XCTAssertNil(AXWindowMatch.select(c2, windowID: 99, frame: f.offsetBy(dx: 3, dy: 0)))
+        XCTAssertNil(AXWindowMatch.select([], windowID: 82, frame: f))
+    }
+}
